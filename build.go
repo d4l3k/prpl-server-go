@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path"
 	"sort"
 	"time"
 
 	"io/ioutil"
 	"net/http"
 	"path/filepath"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 type (
@@ -31,12 +34,21 @@ type (
 		modTime time.Time
 	}
 
+	linkHeader struct {
+		file string
+		as   string
+	}
+
 	// TODO: add all headers including cache-control and
 	// service worker so no regex matching is needed at runtime
 
 	// PushHeaders are the link headers to send for a route
-	PushHeaders map[string][]string
+	PushHeaders map[string][]linkHeader
 )
+
+func (l linkHeader) String() string {
+	return fmt.Sprintf("<%s>; rel=preload; as=%s", l.file, l.as)
+}
 
 var files = make(map[string]*file)
 
@@ -152,43 +164,64 @@ func newBuild(config *ProjectConfig, configOrder int, name string, requirements 
 	pushHeaders := PushHeaders{}
 	prefix := version + name + "/"
 
-	for path, fragment := range routes {
+	for file, assets := range pushManifest {
+		headers := []linkHeader{}
+
+		for p, asset := range assets {
+			link := linkHeader{
+				file: path.Join(prefix, p),
+				as:   asset.Type,
+			}
+			headers = append(headers, link)
+		}
+
+		pushHeaders[path.Join(prefix, file)] = headers
+	}
+
+	for route, fragment := range routes {
 		set := map[string]struct{}{}
-		headers := []string{
-			fmt.Sprintf("<%s%s>; rel=preload; as=%s", prefix, "bower_components/webcomponentsjs/webcomponents-loader.js", "script"),
-			fmt.Sprintf("<%s%s>; rel=preload; as=%s", prefix, config.Shell, "document"),
+		headers := []linkHeader{
+			{
+				file: path.Join(prefix, "bower_components/webcomponentsjs/webcomponents-loader.js"),
+				as:   "script",
+			},
+			{
+				file: path.Join(prefix, config.Shell),
+				as:   "document",
+			},
 		}
-		set[headers[0]] = struct{}{}
-		set[headers[1]] = struct{}{}
-		for path, asset := range pushManifest[config.Shell] {
-			link := fmt.Sprintf("<%s%s>; rel=preload; as=%s", prefix, path, asset.Type)
-			if _, found := set[link]; !found {
-				set[link] = struct{}{}
+		set[headers[0].String()] = struct{}{}
+		set[headers[1].String()] = struct{}{}
+		for p, asset := range pushManifest[config.Shell] {
+			link := linkHeader{
+				file: path.Join(prefix, p),
+				as:   asset.Type,
+			}
+			if _, found := set[link.String()]; !found {
+				set[link.String()] = struct{}{}
 				headers = append(headers, link)
 			}
 		}
 
-		headers = append(headers, fmt.Sprintf("<%s%s>; rel=preload; as=%s", prefix, fragment, "document"))
-		for path, asset := range pushManifest[fragment] {
-			link := fmt.Sprintf("<%s%s>; rel=preload; as=%s", prefix, path, asset.Type)
-			if _, found := set[link]; !found {
-				set[link] = struct{}{}
+		headers = append(headers, linkHeader{
+			file: path.Join(prefix, fragment),
+			as:   "document",
+		})
+		for p, asset := range pushManifest[fragment] {
+			link := linkHeader{
+				file: path.Join(prefix, p),
+				as:   asset.Type,
+			}
+			if _, found := set[link.String()]; !found {
+				set[link.String()] = struct{}{}
 				headers = append(headers, link)
 			}
 		}
 
-		pushHeaders[path] = headers
+		pushHeaders[route] = headers
 	}
 
-	// update paths to account for the build folder name
-	manifest := Manifest{}
-	for path, assets := range pushManifest {
-		adjusted := make(map[string]AssetOpt, len(assets))
-		for assetPath, asset := range assets {
-			adjusted[prefix+assetPath] = asset
-		}
-		manifest[prefix+path] = adjusted
-	}
+	spew.Dump(pushHeaders)
 
 	build := build{
 		name:         name,

@@ -120,7 +120,7 @@ func (c capability) String() string {
 	return strings.Join(val, ", ")
 }
 
-func (p *prpl) browserCapabilities(userAgentString string) capability {
+func (p *PRPL) browserCapabilities(userAgentString string) capability {
 	client := p.parser.Parse(userAgentString)
 
 	predicate, ok := browserPredicates[client.UserAgent.Family]

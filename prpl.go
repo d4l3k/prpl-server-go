@@ -8,7 +8,7 @@ import (
 
 type (
 	// prpl is an instance of the prpl-server service
-	prpl struct {
+	PRPL struct {
 		http.Handler
 		parser         *uaparser.Parser
 		config         *ProjectConfig
@@ -18,15 +18,16 @@ type (
 		version        string
 		staticHandlers map[string]http.Handler
 		createTemplate createTemplateFn
+		shouldPush     func(r *http.Request) bool
 	}
 
 	// optionFn provides functional option configuration
-	optionFn func(*prpl) error
+	optionFn func(*PRPL) error
 )
 
 // New creates a new prpl instance
-func New(options ...optionFn) (*prpl, error) {
-	p := prpl{
+func New(options ...optionFn) (*PRPL, error) {
+	p := PRPL{
 		parser:         uaparser.NewFromSaved(),
 		root:           http.Dir("."),
 		version:        "/static/",
@@ -60,7 +61,7 @@ func New(options ...optionFn) (*prpl, error) {
 
 // WithVersion sets the version prefix
 func WithVersion(version string) optionFn {
-	return func(p *prpl) error {
+	return func(p *PRPL) error {
 		p.version = "/" + version + "/"
 		return nil
 	}
@@ -68,7 +69,7 @@ func WithVersion(version string) optionFn {
 
 // WithRoutes sets the route -> fragment mapping
 func WithRoutes(routes Routes) optionFn {
-	return func(p *prpl) error {
+	return func(p *PRPL) error {
 		p.routes = routes
 		return nil
 	}
@@ -76,7 +77,7 @@ func WithRoutes(routes Routes) optionFn {
 
 // WithRoot sets the root directory
 func WithRoot(root http.Dir) optionFn {
-	return func(p *prpl) error {
+	return func(p *PRPL) error {
 		p.root = root
 		return nil
 	}
@@ -84,7 +85,7 @@ func WithRoot(root http.Dir) optionFn {
 
 // WithConfig sets the project configuration
 func WithConfig(config *ProjectConfig) optionFn {
-	return func(p *prpl) error {
+	return func(p *PRPL) error {
 		p.config = config
 		return nil
 	}
@@ -92,7 +93,7 @@ func WithConfig(config *ProjectConfig) optionFn {
 
 // WithConfigFile loads the project configuration
 func WithConfigFile(filename string) optionFn {
-	return func(p *prpl) error {
+	return func(p *PRPL) error {
 		config, err := ConfigFromFile(filename)
 		if err != nil {
 			return err
@@ -105,7 +106,7 @@ func WithConfigFile(filename string) optionFn {
 // WithUAParserFile allows the uaparser configuration
 // to be overriden from the inbuilt settings
 func WithUAParserFile(regexFile string) optionFn {
-	return func(p *prpl) error {
+	return func(p *PRPL) error {
 		parser, err := uaparser.New(regexFile)
 		if err != nil {
 			return err
@@ -118,7 +119,7 @@ func WithUAParserFile(regexFile string) optionFn {
 // WithUAParserBytes allows the uaparser configuration
 // to be overriden from the inbuilt settings
 func WithUAParserBytes(data []byte) optionFn {
-	return func(p *prpl) error {
+	return func(p *PRPL) error {
 		parser, err := uaparser.NewFromBytes(data)
 		if err != nil {
 			return err
@@ -133,7 +134,7 @@ func WithUAParserBytes(data []byte) optionFn {
 // the manifest.json file per tenant or to serve specific
 // images based on host headers etc ...
 func WithStaticHandler(path string, handler http.Handler) optionFn {
-	return func(p *prpl) error {
+	return func(p *PRPL) error {
 		p.staticHandlers[path] = handler
 		return nil
 	}
@@ -143,8 +144,17 @@ func WithStaticHandler(path string, handler http.Handler) optionFn {
 // into a template so that the output can be transformed if
 // required
 func WithRouteTemplate(factory createTemplateFn) optionFn {
-	return func(p *prpl) error {
+	return func(p *PRPL) error {
 		p.createTemplate = factory
+		return nil
+	}
+}
+
+// WithShouldPush specifies when the server should do a direct HTTP server push
+// instead of just setting the server push Link header.
+func WithShouldPush(shouldPush func(*http.Request) bool) optionFn {
+	return func(p *PRPL) error {
+		p.shouldPush = shouldPush
 		return nil
 	}
 }
