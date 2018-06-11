@@ -12,8 +12,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"path/filepath"
-
-	"github.com/davecgh/go-spew/spew"
 )
 
 type (
@@ -220,8 +218,6 @@ func newBuild(config *ProjectConfig, configOrder int, name string, requirements 
 
 		pushHeaders[route] = headers
 	}
-
-	spew.Dump(pushHeaders)
 
 	build := build{
 		name:         name,

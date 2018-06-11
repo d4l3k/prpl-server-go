@@ -2,7 +2,6 @@ package prpl
 
 import (
 	"bytes"
-	"log"
 	"strings"
 
 	"net/http"
@@ -81,11 +80,6 @@ func (p *PRPL) staticHandler(next http.Handler) http.Handler {
 func (b *build) addHeaders(p *PRPL, w http.ResponseWriter, r *http.Request) {
 	header := w.Header()
 	filename := r.URL.Path
-
-	log.Printf("filename: %q", filename)
-	for f := range b.pushHeaders {
-		log.Printf("f: %q", f)
-	}
 
 	links, ok := b.pushHeaders[filename]
 	if !ok {
